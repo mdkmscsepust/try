@@ -1,17 +1,23 @@
-# app/main.py
 import datetime
 import secrets
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException,status
 import jwt
 from sqlalchemy.orm import Session
 import models, database
 from models import User
+from passlib.context import CryptContext
+
+from UserIn import UserIn
 
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI()
 
 secret_key = secrets.token_hex(32)
+
+pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
+def password_generate(password:str):
+    return pwd_context.hash(password)
 
 algorithm = "HS256"
 def create_jwt_token(data: dict, expires_delta: int=3600):
@@ -40,13 +46,17 @@ def getbyid(id: int, db: Session=Depends(get_db)):
         return "user not found"
     return user
 
-@app.post("/")
-def add(db: Session = Depends(get_db)):
-    user = User(name="Masum", email="masumcsepust@gmail.com")
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
+@app.post("/users/register", status_code=status.HTTP_201_CREATED)
+def add(userin: UserIn, db: Session = Depends(get_db)):
+    try:
+        user = User(name=userin.name, username=userin.username, password=password_generate(userin.password), email=userin.email, contact=userin.contact)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+    except Exception as ex:
+        raise HTTPException(ex.message)
+        
 
 @app.get("/token")
 def get_token():
